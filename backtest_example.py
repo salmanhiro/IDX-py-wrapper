@@ -29,7 +29,7 @@ import numpy as np
 import pandas as pd
 
 from idx_wrapper.forecast import StockForecaster
-from idx_wrapper.news import MAX_NEWS_LOOKBACK_DAYS, fetch_latest_headlines
+from idx_wrapper.news import fetch_latest_headlines, max_news_lookback_days
 from idx_wrapper.sentiment import SentimentAnalyzer
 
 # ---------------------------------------------------------------------------
@@ -116,25 +116,31 @@ if USE_LIVE_NEWS:
     print("\nFetching live news headlines for the backtest window...")
     try:
         live_news: list[list[str]] = []
+        max_lookback_days = max_news_lookback_days()
         for day_index in range(TEST_DAYS):
             day_offset_from_latest = TEST_DAYS - day_index
-            days_back = min(MAX_NEWS_LOOKBACK_DAYS, max(1, day_offset_from_latest))
+            days_back = min(max_lookback_days, max(1, day_offset_from_latest))
             headlines = fetch_latest_headlines(
                 NEWS_QUERY,
                 limit=NEWS_LIMIT,
                 days=days_back,
             )
             live_news.append(headlines)
-        if not any(live_news):
+        if not live_news:
             raise RuntimeError("No headlines returned from RSS feed.")
-        if any(not items for items in live_news):
-            print("Some days are missing headlines; filling gaps with synthetic news.")
-        news_by_day = [
-            items if items else fallback_news_by_day[index]
-            for index, items in enumerate(live_news)
-        ]
-        recent_headlines = next((items for items in reversed(news_by_day) if items), None)
-        print(f"Injected live headlines for query: {NEWS_QUERY}")
+        if not any(live_news):
+            print("No headlines returned; using synthetic news for the backtest window.")
+            news_by_day = fallback_news_by_day
+            recent_headlines = None
+        else:
+            if any(not items for items in live_news):
+                print("Some days are missing headlines; filling gaps with synthetic news.")
+            news_by_day = [
+                items if items else fallback_news_by_day[index]
+                for index, items in enumerate(live_news)
+            ]
+            recent_headlines = next((items for items in reversed(news_by_day) if items), None)
+            print(f"Injected live headlines for query: {NEWS_QUERY}")
     except Exception as exc:
         print(f"Live news fetch failed ({exc}); using synthetic headlines instead.")
 

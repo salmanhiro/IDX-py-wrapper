@@ -12,7 +12,7 @@ from .version import __version__
 
 _DEFAULT_LANG = "en"
 _DEFAULT_REGION = "ID"
-MAX_NEWS_LOOKBACK_DAYS = 30
+_MAX_NEWS_LOOKBACK_DAYS = 30
 
 
 def _build_google_news_url(query: str, days: int, lang: str, region: str) -> str:
@@ -36,6 +36,11 @@ def _parse_rss_titles(xml_text: str, limit: int) -> List[str]:
     return titles
 
 
+def max_news_lookback_days() -> int:
+    """Return the maximum supported lookback window for RSS queries."""
+    return _MAX_NEWS_LOOKBACK_DAYS
+
+
 def fetch_latest_headlines(
     query: str,
     limit: int = 10,
@@ -55,7 +60,7 @@ def fetch_latest_headlines(
         Maximum number of headlines to return.
     days:
         Lookback window in days (Google News "when:Xd" query). Values above
-        MAX_NEWS_LOOKBACK_DAYS are clamped.
+        the maximum lookback are clamped.
     lang / region:
         Language/region settings for the RSS feed.
     timeout:
@@ -68,7 +73,7 @@ def fetch_latest_headlines(
     if days < 1:
         raise ValueError("days must be at least 1.")
 
-    clamped_days = min(days, MAX_NEWS_LOOKBACK_DAYS)
+    clamped_days = min(days, _MAX_NEWS_LOOKBACK_DAYS)
     url = _build_google_news_url(query.strip(), clamped_days, lang, region)
     response = requests.get(
         url,
