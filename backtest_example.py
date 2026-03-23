@@ -29,7 +29,7 @@ import numpy as np
 import pandas as pd
 
 from idx_wrapper.forecast import StockForecaster
-from idx_wrapper.news import fetch_latest_headlines
+from idx_wrapper.news import MAX_DAYS_LOOKBACK, fetch_latest_headlines
 from idx_wrapper.sentiment import SentimentAnalyzer
 
 # ---------------------------------------------------------------------------
@@ -108,7 +108,8 @@ def _build_synthetic_news_by_day(prices_window: np.ndarray, test_days: int) -> l
 
 
 prices_test_window = df_full["ClosePrice"].values[-(TEST_DAYS + 1):]
-news_by_day = _build_synthetic_news_by_day(prices_test_window, TEST_DAYS)
+fallback_news_by_day = _build_synthetic_news_by_day(prices_test_window, TEST_DAYS)
+news_by_day = fallback_news_by_day
 recent_headlines: list[str] | None = None
 
 if USE_LIVE_NEWS:
@@ -117,7 +118,7 @@ if USE_LIVE_NEWS:
         live_news: list[list[str]] = []
         for day_index in range(TEST_DAYS):
             day_offset = TEST_DAYS - day_index
-            days_back = min(30, max(1, day_offset))
+            days_back = min(MAX_DAYS_LOOKBACK, max(1, day_offset))
             headlines = fetch_latest_headlines(
                 NEWS_QUERY,
                 limit=NEWS_LIMIT,
@@ -126,8 +127,13 @@ if USE_LIVE_NEWS:
             live_news.append(headlines)
         if not live_news or not any(live_news):
             raise RuntimeError("No headlines returned from RSS feed.")
-        news_by_day = live_news
-        recent_headlines = next((items for items in reversed(live_news) if items), None)
+        if any(not items for items in live_news):
+            print("Some days are missing headlines; filling gaps with synthetic news.")
+        news_by_day = [
+            items if items else fallback_news_by_day[index]
+            for index, items in enumerate(live_news)
+        ]
+        recent_headlines = next((items for items in reversed(news_by_day) if items), None)
         print(f"Injected live headlines for query: {NEWS_QUERY}")
     except Exception as exc:
         print(f"Live news fetch failed ({exc}); using synthetic headlines instead.")
