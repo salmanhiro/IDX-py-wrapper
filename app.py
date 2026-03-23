@@ -45,11 +45,14 @@ _UI_HTML = """<!doctype html>
       --error: #f06a5c;
       --accent: #f7b469;
       --accent-rgb: 243, 160, 70;
+      --primary-text: #1a140f;
       --primary-hover: #f6b45b;
       --input: #211d1d;
       --input-border: #3a3232;
       --bg-gradient-start: #1b1818;
       --bg-gradient-end: #0b0a0a;
+      --bg-gradient-highlight: rgba(255, 255, 255, 0.04);
+      --bg-gradient-clear: rgba(0, 0, 0, 0);
       --pill-bg: #231f1f;
       --pill-border: #3a2f2a;
     }
@@ -59,8 +62,8 @@ _UI_HTML = """<!doctype html>
       background: var(--bg);
       background-image: radial-gradient(
         circle at top,
-        rgba(255, 255, 255, 0.04) 0%,
-        rgba(0, 0, 0, 0) 55%
+        var(--bg-gradient-highlight) 0%,
+        var(--bg-gradient-clear) 55%
       );
       color: var(--text);
     }
@@ -130,7 +133,7 @@ _UI_HTML = """<!doctype html>
       border: none;
       border-radius: 10px;
       background: var(--primary);
-      color: #1a140f;
+      color: var(--primary-text);
       padding: 10px 16px;
       cursor: pointer;
       font-weight: 600;
@@ -144,7 +147,7 @@ _UI_HTML = """<!doctype html>
 
     button:not(.secondary):not(:disabled):hover {
       background: var(--primary-hover);
-      color: #1a140f;
+      color: var(--primary-text);
       box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.18);
     }
 
