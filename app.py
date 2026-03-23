@@ -293,7 +293,7 @@ _UI_HTML = """<!doctype html>
         const historyDays = parseInt(document.getElementById("history-days").value, 10);
         const headlinesRaw = document.getElementById("news-headlines").value;
         const headlines = headlinesRaw
-          .split("\\n")
+          .split(/\\r?\\n/)
           .map((line) => line.trim())
           .filter(Boolean);
 
