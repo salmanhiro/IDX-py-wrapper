@@ -114,7 +114,8 @@ _UI_HTML = """<!doctype html>
     }
 
     input:focus, textarea:focus {
-      outline: none;
+      outline: 2px solid rgba(var(--accent-rgb), 0.35);
+      outline-offset: 2px;
       border-color: var(--accent);
       box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.2);
     }
@@ -141,7 +142,8 @@ _UI_HTML = """<!doctype html>
     }
 
     button:hover {
-      filter: brightness(1.12);
+      background: #f6b45b;
+      color: #1a140f;
       box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.18);
     }
 
