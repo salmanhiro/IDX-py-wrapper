@@ -14,6 +14,8 @@ from .version import __version__
 _DEFAULT_LANG = "en"
 _DEFAULT_REGION = "ID"
 _MAX_NEWS_LOOKBACK_DAYS = 30
+_REPO_URL = "https://github.com/salmanhiro/IDX-py-wrapper"
+_USER_AGENT = f"IDX-py-wrapper/{__version__} (+{_REPO_URL})"
 
 
 def _build_google_news_url(query: str, days: int, lang: str, region: str) -> str:
@@ -80,7 +82,7 @@ def fetch_latest_headlines(
         url,
         timeout=timeout,
         headers={
-            "User-Agent": f"IDX-py-wrapper/{__version__} (+https://github.com/salmanhiro/IDX-py-wrapper)"
+            "User-Agent": _USER_AGENT
         },
     )
     response.raise_for_status()

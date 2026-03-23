@@ -74,8 +74,11 @@ df_full = pd.DataFrame(
 
 TEST_DAYS = 30
 
-USE_LIVE_NEWS = os.getenv("USE_LIVE_NEWS", "").lower() in {"1", "true", "yes"}
-NEWS_QUERY = os.getenv("NEWS_QUERY", "BBCA stock")
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.lower() in {"1", "true", "yes"}
 
 
 def _env_int(name: str, default: int) -> int:
@@ -89,6 +92,8 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+USE_LIVE_NEWS = _env_bool("USE_LIVE_NEWS")
+NEWS_QUERY = os.getenv("NEWS_QUERY", "BBCA stock")
 NEWS_LIMIT = max(1, _env_int("NEWS_LIMIT", 5))
 
 _positive_headlines = [
