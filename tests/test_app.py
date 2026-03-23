@@ -82,6 +82,20 @@ class TestUI:
         assert "IDX Forecast Dashboard" in response.text
 
 
+class TestNews:
+    def test_returns_headlines(self, client):
+        with patch.object(
+            app_module,
+            "fetch_latest_headlines",
+            return_value=["Headline A", "Headline B"],
+        ):
+            response = client.get("/news?query=BBCA%20stock&limit=2&days=1")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["query"] == "BBCA stock"
+        assert body["headlines"] == ["Headline A", "Headline B"]
+
+
 # ---------------------------------------------------------------------------
 # /stocks
 # ---------------------------------------------------------------------------

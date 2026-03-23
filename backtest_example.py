@@ -10,6 +10,11 @@ This script shows the accuracy of the weighted stacking forecasting model
 4. Comparing predicted price direction to actual movement.
 5. Printing a detailed accuracy report and day-by-day results.
 
+Set USE_LIVE_NEWS=1 to fetch recent headlines from Google News RSS and
+inject them into the backtest window. This is a best-effort approximation
+for "around current time" news; if the fetch fails, the script falls back
+to synthetic headlines.
+
 The synthetic prices follow a geometric random walk with a small upward
 drift (realistic for a growing emerging-market stock), combined with
 occasional sentiment-driven shocks.
@@ -17,12 +22,14 @@ occasional sentiment-driven shocks.
 
 from __future__ import annotations
 
+import os
 import random
 
 import numpy as np
 import pandas as pd
 
 from idx_wrapper.forecast import StockForecaster
+from idx_wrapper.news import fetch_latest_headlines
 from idx_wrapper.sentiment import SentimentAnalyzer
 
 # ---------------------------------------------------------------------------
@@ -60,12 +67,16 @@ df_full = pd.DataFrame(
 )
 
 # ---------------------------------------------------------------------------
-# Synthetic news headlines for each day in the test window
+# News headlines for each day in the test window
 # ---------------------------------------------------------------------------
-# In a real system these would come from a news API; here we simulate
-# a mix of positive and negative headlines roughly correlated with price moves.
+# By default we simulate a mix of positive and negative headlines. To inject
+# live headlines near the current time, set USE_LIVE_NEWS=1 before running.
 
 TEST_DAYS = 30
+
+USE_LIVE_NEWS = os.getenv("USE_LIVE_NEWS", "").lower() in {"1", "true", "yes"}
+NEWS_QUERY = os.getenv("NEWS_QUERY", "BBCA stock")
+NEWS_LIMIT = int(os.getenv("NEWS_LIMIT", "5"))
 
 _positive_headlines = [
     "BBCA reports strong quarterly earnings growth",
@@ -84,17 +95,41 @@ _negative_headlines = [
     "Market sell-off amid global risk aversion",
 ]
 
-# Simulate 30 days of news: roughly follow price direction
+
+def _build_synthetic_news_by_day(prices_window: np.ndarray, test_days: int) -> list[list[str]]:
+    news: list[list[str]] = []
+    for i in range(test_days):
+        price_change = prices_window[i + 1] - prices_window[i]
+        if price_change > 0:
+            news.append(random.sample(_positive_headlines, k=2))
+        else:
+            news.append(random.sample(_negative_headlines, k=2))
+    return news
+
+
 prices_test_window = df_full["ClosePrice"].values[-(TEST_DAYS + 1):]
-news_by_day: list[list[str]] = []
-for i in range(TEST_DAYS):
-    price_change = prices_test_window[i + 1] - prices_test_window[i]
-    if price_change > 0:
-        # Mostly positive news on up days
-        news_by_day.append(random.sample(_positive_headlines, k=2))
-    else:
-        # Mostly negative news on down days
-        news_by_day.append(random.sample(_negative_headlines, k=2))
+news_by_day = _build_synthetic_news_by_day(prices_test_window, TEST_DAYS)
+latest_headlines: list[str] | None = None
+
+if USE_LIVE_NEWS:
+    print("\nFetching live news headlines for the backtest window...")
+    try:
+        live_news: list[list[str]] = []
+        for day_index in range(TEST_DAYS):
+            days_back = min(30, max(1, TEST_DAYS - day_index))
+            headlines = fetch_latest_headlines(
+                NEWS_QUERY,
+                limit=NEWS_LIMIT,
+                days=days_back,
+            )
+            live_news.append(headlines)
+        if not any(live_news):
+            raise RuntimeError("No headlines returned from RSS feed.")
+        news_by_day = live_news
+        latest_headlines = next((items for items in reversed(live_news) if items), None)
+        print(f"Injected live headlines for query: {NEWS_QUERY}")
+    except Exception as exc:
+        print(f"Live news fetch failed ({exc}); using synthetic headlines instead.")
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +194,7 @@ for chunk in chunks:
 # ---------------------------------------------------------------------------
 
 analyzer = SentimentAnalyzer()
-sample_headlines = [
+sample_headlines = latest_headlines or [
     "BBCA Q4 profit surges 18% amid strong loan growth",
     "Bank Central Asia dividend raised by 10%",
 ]

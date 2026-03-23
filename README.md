@@ -16,6 +16,7 @@ A Python wrapper for the public [Indonesia Stock Exchange (IDX)](https://www.idx
 | `GET /brokers` | Trading summary per broker member |
 | `POST /forecast/{code}` | Buy/Hold/Sell recommendation (quantitative + news sentiment) |
 | `GET /ui` | Web dashboard to run forecast recommendations |
+| `GET /news` | Latest news headlines for a query (RSS feed) |
 
 Interactive API documentation is available at **`/docs`** (Swagger UI) once the server is running.
 
@@ -111,6 +112,9 @@ curl "http://localhost:8000/companies?code=TLKM"
 # Top 10 brokers
 curl "http://localhost:8000/brokers?length=10"
 
+# Latest headlines for BBCA
+curl "http://localhost:8000/news?query=BBCA%20stock&days=1&limit=5"
+
 # Forecast for BBCA — pure quantitative (no news)
 curl -X POST http://localhost:8000/forecast/BBCA
 
@@ -160,6 +164,7 @@ for row in ihsg["data"]:
 ```python
 import pandas as pd
 from idx_wrapper.forecast import StockForecaster
+from idx_wrapper.news import fetch_latest_headlines
 
 forecaster = StockForecaster(quant_weight=0.6, sentiment_weight=0.4)
 
@@ -173,6 +178,9 @@ headlines = [
     "BBCA Q4 profit surges 18% amid strong loan growth",
     "Bank Central Asia dividend raised by 10%",
 ]
+
+# Or fetch the latest headlines at runtime
+# headlines = fetch_latest_headlines("BBCA stock", limit=5, days=1)
 
 result = forecaster.forecast(price_df, news_headlines=headlines)
 print(result["recommendation_short_term"])   # e.g. "Buy"
@@ -195,6 +203,12 @@ Run the included backtesting demo:
 
 ```bash
 python backtest_example.py
+```
+
+To inject live headlines for the test window (best-effort RSS fetch):
+
+```bash
+USE_LIVE_NEWS=1 NEWS_QUERY="BBCA stock" NEWS_LIMIT=5 python backtest_example.py
 ```
 
 Run the included sample script for a full demonstration:
@@ -222,11 +236,13 @@ IDX-py-wrapper/
 │   ├── __init__.py      # Package entry point
 │   ├── client.py        # IDXClient — all API calls
 │   ├── forecast.py      # QuantitativeAnalyzer + StockForecaster (weighted stacking)
+│   ├── news.py          # RSS-based headline fetcher (Google News)
 │   └── sentiment.py     # SentimentAnalyzer — keyword-based news scoring
 ├── tests/
 │   ├── test_client.py   # Unit tests for IDXClient
 │   ├── test_app.py      # Unit tests for FastAPI endpoints
 │   ├── test_forecast.py # Unit tests for forecasting engine
+│   ├── test_news.py     # Unit tests for RSS headline fetcher
 │   └── test_sentiment.py# Unit tests for sentiment analyzer
 ├── app.py               # FastAPI server with sample endpoints
 ├── example.py           # Standalone usage examples

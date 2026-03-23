@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from idx_wrapper import IDXClient
 from idx_wrapper.forecast import StockForecaster
+from idx_wrapper.news import fetch_latest_headlines
 
 app = FastAPI(
     title="IDX Python Wrapper API",
@@ -380,6 +381,23 @@ def root() -> Dict[str, str]:
 def ui() -> str:
     """Simple web UI for the forecast endpoint."""
     return _UI_HTML
+
+
+@app.get("/news", tags=["News"])
+def get_news_headlines(
+    query: str = Query(..., description="Search query (e.g. BBCA stock)"),
+    limit: int = Query(default=5, ge=1, le=50),
+    days: int = Query(default=1, ge=1, le=30),
+) -> Dict[str, Any]:
+    """Fetch recent headlines from Google News RSS for the given query."""
+    try:
+        headlines = fetch_latest_headlines(query=query, limit=limit, days=days)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch headlines: {exc}") from exc
+
+    return {"query": query, "days": days, "headlines": headlines}
 
 
 @app.get("/stocks", tags=["Stocks"])
