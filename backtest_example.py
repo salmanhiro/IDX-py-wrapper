@@ -29,7 +29,7 @@ import numpy as np
 import pandas as pd
 
 from idx_wrapper.forecast import StockForecaster
-from idx_wrapper.news import MAX_DAYS_LOOKBACK, fetch_latest_headlines
+from idx_wrapper.news import MAX_NEWS_LOOKBACK_DAYS, fetch_latest_headlines
 from idx_wrapper.sentiment import SentimentAnalyzer
 
 # ---------------------------------------------------------------------------
@@ -117,15 +117,15 @@ if USE_LIVE_NEWS:
     try:
         live_news: list[list[str]] = []
         for day_index in range(TEST_DAYS):
-            day_offset = TEST_DAYS - day_index
-            days_back = min(MAX_DAYS_LOOKBACK, max(1, day_offset))
+            day_offset_from_latest = TEST_DAYS - day_index
+            days_back = min(MAX_NEWS_LOOKBACK_DAYS, max(1, day_offset_from_latest))
             headlines = fetch_latest_headlines(
                 NEWS_QUERY,
                 limit=NEWS_LIMIT,
                 days=days_back,
             )
             live_news.append(headlines)
-        if not live_news or not any(live_news):
+        if not any(live_news):
             raise RuntimeError("No headlines returned from RSS feed.")
         if any(not items for items in live_news):
             print("Some days are missing headlines; filling gaps with synthetic news.")
