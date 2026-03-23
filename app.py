@@ -131,7 +131,8 @@ _UI_HTML = """<!doctype html>
     }
 
     button:hover {
-      filter: brightness(1.05);
+      filter: brightness(1.12);
+      box-shadow: 0 0 0 2px rgba(243, 160, 70, 0.18);
     }
 
     button:disabled {
