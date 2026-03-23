@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
+import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from idx_wrapper import IDXClient
+from idx_wrapper.forecast import StockForecaster
 
 app = FastAPI(
     title="IDX Python Wrapper API",
@@ -19,6 +22,19 @@ app = FastAPI(
 )
 
 _client = IDXClient()
+_forecaster = StockForecaster()
+
+
+# ---------------------------------------------------------------------------
+# Request body models
+# ---------------------------------------------------------------------------
+
+
+class ForecastRequest(BaseModel):
+    """Optional body for the /forecast/{code} endpoint."""
+
+    news_headlines: Optional[List[str]] = None
+    history_days: int = 90  # Minimum 60 required for enough indicator data
 
 
 # ---------------------------------------------------------------------------
@@ -175,3 +191,80 @@ def list_brokers(
         return _client.get_broker_summary(start=start, length=length)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# Forecast
+# ---------------------------------------------------------------------------
+
+
+@app.post("/forecast/{code}", tags=["Forecast"])
+def forecast_stock(
+    code: str,
+    body: Optional[ForecastRequest] = None,
+) -> Any:
+    """Generate a **buy / hold / sell** recommendation for a stock by
+    combining quantitative technical analysis with news sentiment scoring.
+
+    **Model architecture (weighted stacking):**
+    - Quantitative signals (60% weight): RSI, MACD, SMA20/SMA50 crossover,
+      Bollinger Bands, price momentum, volume trend.
+    - News sentiment (40% weight): keyword-based scoring of supplied
+      headlines (-1.0 very negative → +1.0 very positive).
+
+    Final score = 0.6 × quant_score + 0.4 × sentiment_score
+
+    Recommendations: **Strong Buy** (≥0.50), **Buy** (≥0.15),
+    **Hold** ([-0.15, 0.15)), **Sell** (≥-0.50), **Strong Sell**.
+
+    **Request body (optional JSON):**
+    ```json
+    {
+      "news_headlines": ["Company reports record profit", "Shares drop on weak guidance"],
+      "history_days": 90
+    }
+    ```
+    `history_days` must be ≥ 60 (default 90).
+
+    Example:
+    - `POST /forecast/BBCA` — pure quantitative (no news)
+    - `POST /forecast/TLKM` with body — quantitative + news sentiment
+    """
+    req = body or ForecastRequest()
+    ticker = code.upper()
+    history_days = req.history_days
+
+    if history_days < 60:
+        raise HTTPException(
+            status_code=422,
+            detail="history_days must be at least 60 (need ≥51 records for technical indicators).",
+        )
+
+    # Fetch daily price history
+    try:
+        raw = _client.get_stocks_daily(code=ticker, length=history_days)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch price data: {exc}") from exc
+
+    records = raw.get("data", [])
+    if len(records) < 51:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Not enough historical data for '{ticker}' "
+                f"(got {len(records)}, need ≥51 days)."
+            ),
+        )
+
+    price_df = pd.DataFrame(records)
+    if "Date" in price_df.columns:
+        price_df = price_df.sort_values("Date").reset_index(drop=True)
+
+    try:
+        result = _forecaster.forecast(price_df, news_headlines=req.news_headlines)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return {"code": ticker, **result}

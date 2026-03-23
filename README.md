@@ -14,8 +14,46 @@ A Python wrapper for the public [Indonesia Stock Exchange (IDX)](https://www.idx
 | `GET /companies` | Company profiles for listed IDX companies |
 | `GET /index/{index_id}` | Historical statistics for a market index (e.g. IHSG) |
 | `GET /brokers` | Trading summary per broker member |
+| `POST /forecast/{code}` | Buy/Hold/Sell recommendation (quantitative + news sentiment) |
 
 Interactive API documentation is available at **`/docs`** (Swagger UI) once the server is running.
+
+---
+
+## Forecast model architecture
+
+The `/forecast/{code}` endpoint (and `StockForecaster` library class) uses a **weighted stacking** approach:
+
+```
+Final Score = 0.60 × Quant Score  +  0.40 × Sentiment Score
+```
+
+### Quantitative analysis (60% weight)
+
+Six technical indicators are computed on historical OHLCV data, each normalised to [-1, +1]:
+
+| Indicator | Short-term weight | Long-term weight |
+|---|---|---|
+| RSI (14-day) | 30% | 15% |
+| MACD (12/26/9) | 25% | 10% |
+| Price Momentum (10-day) | 25% | — |
+| SMA20/SMA50 crossover | 10% | 35% |
+| Bollinger Bands (20-day) | 10% | 20% |
+| Volume trend | — | 20% |
+
+### News sentiment analysis (40% weight)
+
+A keyword-based financial dictionary scores each headline from -1.0 (very negative) to +1.0 (very positive).  Strong-signal phrases (e.g. *"record high"*, *"bankruptcy"*) carry higher weight than single keywords.  Scores are averaged across all supplied headlines.
+
+### Recommendations
+
+| Score range | Label |
+|---|---|
+| ≥ 0.50 | Strong Buy |
+| 0.15 – 0.50 | Buy |
+| -0.15 – 0.15 | Hold |
+| -0.50 – -0.15 | Sell |
+| < -0.50 | Strong Sell |
 
 ---
 
@@ -67,6 +105,14 @@ curl "http://localhost:8000/companies?code=TLKM"
 
 # Top 10 brokers
 curl "http://localhost:8000/brokers?length=10"
+
+# Forecast for BBCA — pure quantitative (no news)
+curl -X POST http://localhost:8000/forecast/BBCA
+
+# Forecast for BBCA — quantitative + news sentiment
+curl -X POST http://localhost:8000/forecast/BBCA \
+  -H "Content-Type: application/json" \
+  -d '{"news_headlines": ["BBCA Q4 profit surges 18%", "Dividend raised by 10%"]}'
 ```
 
 ---
@@ -104,6 +150,48 @@ for row in ihsg["data"]:
     print(row)
 ```
 
+### Forecasting (quantitative + sentiment stacking)
+
+```python
+import pandas as pd
+from idx_wrapper.forecast import StockForecaster
+
+forecaster = StockForecaster(quant_weight=0.6, sentiment_weight=0.4)
+
+# Build a price DataFrame from IDX daily data
+client = IDXClient()
+raw = client.get_stocks_daily(code="BBCA", length=90)
+price_df = pd.DataFrame(raw["data"]).sort_values("Date").reset_index(drop=True)
+
+# Optional: supply today's news headlines for sentiment scoring
+headlines = [
+    "BBCA Q4 profit surges 18% amid strong loan growth",
+    "Bank Central Asia dividend raised by 10%",
+]
+
+result = forecaster.forecast(price_df, news_headlines=headlines)
+print(result["recommendation_short_term"])   # e.g. "Buy"
+print(result["recommendation_long_term"])    # e.g. "Hold"
+print(result["score_short_term"])            # e.g. 0.42
+print(result["explanation"])
+```
+
+### Backtesting — masked last-month accuracy study
+
+```python
+# See backtest_example.py for a full walkthrough.
+# Quick version:
+backtest = forecaster.backtest(price_df, test_days=30)
+print(f"Directional accuracy: {backtest['directional_accuracy']:.1%}")
+print(f"Total predictions: {backtest['total_predictions']}")
+```
+
+Run the included backtesting demo:
+
+```bash
+python backtest_example.py
+```
+
 Run the included sample script for a full demonstration:
 
 ```bash
@@ -127,12 +215,17 @@ pytest tests/ -v
 IDX-py-wrapper/
 ├── idx_wrapper/
 │   ├── __init__.py      # Package entry point
-│   └── client.py        # IDXClient — all API calls
+│   ├── client.py        # IDXClient — all API calls
+│   ├── forecast.py      # QuantitativeAnalyzer + StockForecaster (weighted stacking)
+│   └── sentiment.py     # SentimentAnalyzer — keyword-based news scoring
 ├── tests/
 │   ├── test_client.py   # Unit tests for IDXClient
-│   └── test_app.py      # Unit tests for FastAPI endpoints
+│   ├── test_app.py      # Unit tests for FastAPI endpoints
+│   ├── test_forecast.py # Unit tests for forecasting engine
+│   └── test_sentiment.py# Unit tests for sentiment analyzer
 ├── app.py               # FastAPI server with sample endpoints
 ├── example.py           # Standalone usage examples
+├── backtest_example.py  # Backtesting demo with masked last-month study
 ├── requirements.txt
 ├── Dockerfile
 └── docker-compose.yml

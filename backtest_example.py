@@ -1,0 +1,192 @@
+"""Backtesting demonstration: masked last-month study.
+
+This script shows the accuracy of the weighted stacking forecasting model
+(quantitative + news sentiment) by:
+
+1. Generating one year of realistic synthetic daily price data.
+2. Masking the last 30 days as a held-out test set.
+3. Running rolling predictions for each day in the test set using only
+   data available up to that point (no look-ahead).
+4. Comparing predicted price direction to actual movement.
+5. Printing a detailed accuracy report and day-by-day results.
+
+The synthetic prices follow a geometric random walk with a small upward
+drift (realistic for a growing emerging-market stock), combined with
+occasional sentiment-driven shocks.
+"""
+
+from __future__ import annotations
+
+import random
+
+import numpy as np
+import pandas as pd
+
+from idx_wrapper.forecast import StockForecaster
+from idx_wrapper.sentiment import SentimentAnalyzer
+
+# ---------------------------------------------------------------------------
+# Reproducible synthetic data generation
+# ---------------------------------------------------------------------------
+
+SEED = 42
+random.seed(SEED)
+np.random.seed(SEED)
+
+# Simulate 365 trading days of BBCA-like price (~9000 IDR range)
+N_DAYS = 365
+START_PRICE = 9_000.0
+DAILY_DRIFT = 0.0003       # ~7% annual drift
+DAILY_VOL = 0.012          # ~19% annual volatility
+
+dates = pd.date_range("2023-01-02", periods=N_DAYS, freq="B")  # business days
+log_returns = np.random.normal(DAILY_DRIFT, DAILY_VOL, N_DAYS)
+prices = START_PRICE * np.exp(np.cumsum(log_returns))
+# Add occasional news-driven spikes (±3% on random days)
+for _ in range(20):
+    idx = random.randint(30, N_DAYS - 1)
+    prices[idx:] *= 1 + random.uniform(-0.03, 0.04)
+
+volumes = (
+    np.random.lognormal(mean=16.0, sigma=0.4, size=N_DAYS) * 1_000
+).astype(int)
+
+df_full = pd.DataFrame(
+    {
+        "Date": dates,
+        "ClosePrice": prices.round(0),
+        "Volume": volumes,
+    }
+)
+
+# ---------------------------------------------------------------------------
+# Synthetic news headlines for each day in the test window
+# ---------------------------------------------------------------------------
+# In a real system these would come from a news API; here we simulate
+# a mix of positive and negative headlines roughly correlated with price moves.
+
+TEST_DAYS = 30
+
+_positive_headlines = [
+    "BBCA reports strong quarterly earnings growth",
+    "Bank Central Asia dividend increase announced",
+    "Indonesian GDP growth beats expectations",
+    "BBCA expands digital banking portfolio",
+    "Strong foreign inflows into IDX blue chips",
+    "Central bank holds rates; banks benefit",
+    "BBCA market cap hits record high",
+]
+_negative_headlines = [
+    "Concerns over rising non-performing loans",
+    "Foreign investors reduce IDX exposure",
+    "Inflation data comes in higher than expected",
+    "BBCA profit margins under pressure",
+    "Market sell-off amid global risk aversion",
+]
+
+# Simulate 30 days of news: roughly follow price direction
+prices_test_window = df_full["ClosePrice"].values[-(TEST_DAYS + 1):]
+news_by_day: list[list[str]] = []
+for i in range(TEST_DAYS):
+    price_change = prices_test_window[i + 1] - prices_test_window[i]
+    if price_change > 0:
+        # Mostly positive news on up days
+        news_by_day.append(random.sample(_positive_headlines, k=2))
+    else:
+        # Mostly negative news on down days
+        news_by_day.append(random.sample(_negative_headlines, k=2))
+
+
+# ---------------------------------------------------------------------------
+# Run backtesting
+# ---------------------------------------------------------------------------
+
+forecaster = StockForecaster(quant_weight=0.6, sentiment_weight=0.4)
+
+print("=" * 70)
+print("IDX-py-wrapper — Backtesting Report")
+print("Model: Quantitative (60%) + News Sentiment (40%)")
+print(f"Synthetic data: {N_DAYS} trading days  |  Masked test window: {TEST_DAYS} days")
+print("=" * 70)
+
+backtest = forecaster.backtest(df_full, test_days=TEST_DAYS, news_by_day=news_by_day)
+
+print(
+    f"\nTotal predictions : {backtest['total_predictions']}"
+)
+print(f"Correct           : {backtest['correct_predictions']}")
+print(f"Directional acc.  : {backtest['directional_accuracy']:.1%}")
+if backtest["precision_buy"] is not None:
+    print(f"Precision (Buy)   : {backtest['precision_buy']:.1%}")
+if backtest["precision_sell"] is not None:
+    print(f"Precision (Sell)  : {backtest['precision_sell']:.1%}")
+
+print("\n--- Day-by-day results (last 10 shown) ---")
+print(
+    f"{'Day':>4}  {'Score':>7}  {'Predicted':>9}  {'Actual':>7}  "
+    f"{'Close':>8}  {'Next':>8}  {'OK?':>4}"
+)
+print("-" * 60)
+for row in backtest["day_by_day"][-10:]:
+    ok_mark = "✓" if row["correct"] else "✗"
+    print(
+        f"{row['day_index']:>4}  {row['score_short_term']:>+7.4f}  "
+        f"{row['predicted_direction']:>9}  {row['actual_direction']:>7}  "
+        f"{row['actual_close']:>8.0f}  {row['next_close']:>8.0f}  {ok_mark:>4}"
+    )
+
+# ---------------------------------------------------------------------------
+# Trend-capture visualisation (ASCII)
+# ---------------------------------------------------------------------------
+
+print("\n--- Actual vs. Predicted Trend (test window) ---")
+print("  Each row = 1 test day.  P=Predicted Up(↑)/Down(↓)  A=Actual")
+print()
+
+day_results = backtest["day_by_day"]
+chunks = [day_results[i : i + 5] for i in range(0, len(day_results), 5)]
+for chunk in chunks:
+    preds = "".join("↑" if d["predicted_direction"] == "up" else "↓" for d in chunk)
+    actuals = "".join("↑" if d["actual_direction"] == "up" else "↓" for d in chunk)
+    matches = "".join("✓" if d["correct"] else "✗" for d in chunk)
+    print(f"  Pred   : {preds}")
+    print(f"  Actual : {actuals}")
+    print(f"  Match  : {matches}")
+    print()
+
+# ---------------------------------------------------------------------------
+# Sample single-day forecast (most recent data)
+# ---------------------------------------------------------------------------
+
+analyzer = SentimentAnalyzer()
+sample_headlines = [
+    "BBCA Q4 profit surges 18% amid strong loan growth",
+    "Bank Central Asia dividend raised by 10%",
+]
+print("=" * 70)
+print("Sample forecast — most recent day (all 365 days available)")
+print("News headlines:")
+for h in sample_headlines:
+    print(f"  • {h}")
+    print(f"    Sentiment score: {analyzer.score_headline(h):+.2f}")
+print()
+
+forecast = forecaster.forecast(df_full, news_headlines=sample_headlines)
+print(f"Short-term recommendation : {forecast['recommendation_short_term']}")
+print(f"Long-term  recommendation : {forecast['recommendation_long_term']}")
+print(f"Short-term score          : {forecast['score_short_term']:+.4f}")
+print(f"Long-term  score          : {forecast['score_long_term']:+.4f}")
+print(f"Quant score (short)       : {forecast['quant_score_short']:+.4f}")
+print(f"Quant score (long)        : {forecast['quant_score_long']:+.4f}")
+print(f"Sentiment score           : {forecast['sentiment_score']:+.4f}  ({forecast['news_sentiment_label']})")
+print(f"\nWeights: quant={forecast['weights']['quantitative']:.0%}  sentiment={forecast['weights']['sentiment']:.0%}")
+print(f"\nExplanation:\n  {forecast['explanation']}")
+
+print()
+print("Technical indicators:")
+for name, val in forecast["indicators"].items():
+    bar_len = int(abs(val) * 20)
+    bar = ("█" * bar_len).ljust(20)
+    sign = "+" if val >= 0 else "-"
+    print(f"  {name:<16} {sign}{abs(val):.4f}  {bar}")
+print()

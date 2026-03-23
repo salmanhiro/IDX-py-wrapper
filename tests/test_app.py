@@ -232,3 +232,88 @@ class TestListBrokers:
         ):
             response = client.get("/brokers")
         assert response.status_code == 502
+
+
+# ---------------------------------------------------------------------------
+# /forecast/{code}
+# ---------------------------------------------------------------------------
+
+import numpy as np
+import pandas as pd
+
+
+def _make_price_response(n: int = 100, start: float = 9000.0) -> dict:
+    prices = (start + np.arange(n) * 5).tolist()
+    volumes = [1_000_000] * n
+    data = [
+        {
+            "Date": f"2024-{(i // 30 + 1):02d}-{(i % 28 + 1):02d}",
+            "ClosePrice": p,
+            "Volume": v,
+        }
+        for i, (p, v) in enumerate(zip(prices, volumes))
+    ]
+    return {"recordsTotal": n, "recordsFiltered": n, "data": data}
+
+
+class TestForecastStock:
+    def test_returns_200_with_valid_data(self, client):
+        with patch.object(
+            app_module._client,
+            "get_stocks_daily",
+            return_value=_make_price_response(100),
+        ):
+            response = client.post("/forecast/BBCA")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["code"] == "BBCA"
+        assert "recommendation_short_term" in body
+        assert "recommendation_long_term" in body
+        assert "score_short_term" in body
+        assert "indicators" in body
+
+    def test_accepts_news_headlines(self, client):
+        with patch.object(
+            app_module._client,
+            "get_stocks_daily",
+            return_value=_make_price_response(100),
+        ):
+            response = client.post(
+                "/forecast/BBCA",
+                json={"news_headlines": ["Strong profit growth", "Dividend increased"]},
+            )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["sentiment_score"] != 0.0
+
+    def test_returns_422_when_not_enough_data(self, client):
+        with patch.object(
+            app_module._client,
+            "get_stocks_daily",
+            return_value=_make_price_response(5),
+        ):
+            response = client.post("/forecast/BBCA")
+        assert response.status_code == 422
+
+    def test_returns_422_when_history_days_too_small(self, client):
+        response = client.post("/forecast/BBCA", json={"history_days": 30})
+        assert response.status_code == 422
+
+    def test_returns_502_on_fetch_error(self, client):
+        with patch.object(
+            app_module._client,
+            "get_stocks_daily",
+            side_effect=Exception("network error"),
+        ):
+            response = client.post("/forecast/BBCA")
+        assert response.status_code == 502
+
+    def test_code_is_uppercased(self, client):
+        with patch.object(
+            app_module._client,
+            "get_stocks_daily",
+            return_value=_make_price_response(100),
+        ):
+            response = client.post("/forecast/bbca")
+        assert response.status_code == 200
+        assert response.json()["code"] == "BBCA"
