@@ -56,11 +56,11 @@ _UI_HTML = """<!doctype html>
 
     body {
       margin: 0;
-      background: radial-gradient(
+      background: var(--bg);
+      background-image: radial-gradient(
         circle at top,
-        var(--bg-gradient-start) 0%,
-        var(--bg) 45%,
-        var(--bg-gradient-end) 100%
+        rgba(255, 255, 255, 0.04) 0%,
+        rgba(0, 0, 0, 0) 55%
       );
       color: var(--text);
     }
@@ -142,10 +142,15 @@ _UI_HTML = """<!doctype html>
       border: 1px solid var(--border);
     }
 
-    button:hover {
+    button:not(.secondary):not(:disabled):hover {
       background: var(--primary-hover);
       color: #1a140f;
       box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.18);
+    }
+
+    button.secondary:not(:disabled):hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.12);
     }
 
     button:disabled {
