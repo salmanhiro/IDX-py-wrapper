@@ -116,14 +116,15 @@ if USE_LIVE_NEWS:
     try:
         live_news: list[list[str]] = []
         for day_index in range(TEST_DAYS):
-            days_back = min(30, max(1, TEST_DAYS - day_index))
+            day_offset = TEST_DAYS - day_index
+            days_back = min(30, max(1, day_offset))
             headlines = fetch_latest_headlines(
                 NEWS_QUERY,
                 limit=NEWS_LIMIT,
                 days=days_back,
             )
             live_news.append(headlines)
-        if not any(live_news):
+        if not live_news or not any(live_news):
             raise RuntimeError("No headlines returned from RSS feed.")
         news_by_day = live_news
         latest_headlines = next((items for items in reversed(live_news) if items), None)
