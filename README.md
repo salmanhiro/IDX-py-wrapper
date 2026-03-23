@@ -237,7 +237,8 @@ IDX-py-wrapper/
 │   ├── client.py        # IDXClient — all API calls
 │   ├── forecast.py      # QuantitativeAnalyzer + StockForecaster (weighted stacking)
 │   ├── news.py          # RSS-based headline fetcher (Google News)
-│   └── sentiment.py     # SentimentAnalyzer — keyword-based news scoring
+│   ├── sentiment.py     # SentimentAnalyzer — keyword-based news scoring
+│   └── version.py       # Package version
 ├── tests/
 │   ├── test_client.py   # Unit tests for IDXClient
 │   ├── test_app.py      # Unit tests for FastAPI endpoints

@@ -109,7 +109,7 @@ def _build_synthetic_news_by_day(prices_window: np.ndarray, test_days: int) -> l
 
 prices_test_window = df_full["ClosePrice"].values[-(TEST_DAYS + 1):]
 news_by_day = _build_synthetic_news_by_day(prices_test_window, TEST_DAYS)
-latest_headlines: list[str] | None = None
+recent_headlines: list[str] | None = None
 
 if USE_LIVE_NEWS:
     print("\nFetching live news headlines for the backtest window...")
@@ -127,7 +127,7 @@ if USE_LIVE_NEWS:
         if not live_news or not any(live_news):
             raise RuntimeError("No headlines returned from RSS feed.")
         news_by_day = live_news
-        latest_headlines = next((items for items in reversed(live_news) if items), None)
+        recent_headlines = next((items for items in reversed(live_news) if items), None)
         print(f"Injected live headlines for query: {NEWS_QUERY}")
     except Exception as exc:
         print(f"Live news fetch failed ({exc}); using synthetic headlines instead.")
@@ -195,7 +195,7 @@ for chunk in chunks:
 # ---------------------------------------------------------------------------
 
 analyzer = SentimentAnalyzer()
-sample_headlines = latest_headlines or [
+sample_headlines = recent_headlines or [
     "BBCA Q4 profit surges 18% amid strong loan growth",
     "Bank Central Asia dividend raised by 10%",
 ]

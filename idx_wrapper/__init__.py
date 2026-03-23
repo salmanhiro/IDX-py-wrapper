@@ -2,6 +2,7 @@
 
 from .client import IDXClient
 from .forecast import StockForecaster, QuantitativeAnalyzer
+from .version import __version__
 from .sentiment import SentimentAnalyzer
 from .news import fetch_latest_headlines
 
@@ -12,4 +13,3 @@ __all__ = [
     "SentimentAnalyzer",
     "fetch_latest_headlines",
 ]
-__version__ = "1.0.0"

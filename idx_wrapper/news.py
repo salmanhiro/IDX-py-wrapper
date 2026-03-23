@@ -8,6 +8,8 @@ import xml.etree.ElementTree as ET
 
 import requests
 
+from .version import __version__
+
 _DEFAULT_LANG = "en"
 _DEFAULT_REGION = "ID"
 _MAX_DAYS_LOOKBACK = 30
@@ -71,7 +73,7 @@ def fetch_latest_headlines(
         url,
         timeout=timeout,
         headers={
-            "User-Agent": "IDX-py-wrapper/1.0 (+https://github.com/salmanhiro/IDX-py-wrapper)"
+            "User-Agent": f"IDX-py-wrapper/{__version__} (+https://github.com/salmanhiro/IDX-py-wrapper)"
         },
     )
     response.raise_for_status()
