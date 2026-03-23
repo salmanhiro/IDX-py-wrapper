@@ -33,21 +33,24 @@ _UI_HTML = """<!doctype html>
   <title>IDX Forecast Dashboard</title>
   <style>
     :root {
-      color-scheme: light;
+      color-scheme: dark;
       font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-      --bg: #f6f7fb;
-      --card: #ffffff;
-      --text: #1f2937;
-      --muted: #6b7280;
-      --primary: #1d4ed8;
-      --border: #e5e7eb;
-      --success: #16a34a;
-      --error: #dc2626;
+      --bg: #0f0d0d;
+      --card: #1a1717;
+      --text: #f2f1ef;
+      --muted: #a39d96;
+      --primary: #f3a046;
+      --border: #2b2626;
+      --success: #5bbf9c;
+      --error: #f06a5c;
+      --accent: #f7b469;
+      --input: #211d1d;
+      --input-border: #3a3232;
     }
 
     body {
       margin: 0;
-      background: var(--bg);
+      background: radial-gradient(circle at top, #1b1818 0%, var(--bg) 45%, #0b0a0a 100%);
       color: var(--text);
     }
 
@@ -71,7 +74,7 @@ _UI_HTML = """<!doctype html>
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 20px;
-      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+      box-shadow: 0 18px 30px rgba(0, 0, 0, 0.35);
     }
 
     .grid {
@@ -93,10 +96,17 @@ _UI_HTML = """<!doctype html>
     input, textarea {
       width: 100%;
       padding: 10px 12px;
-      border: 1px solid var(--border);
+      border: 1px solid var(--input-border);
       border-radius: 10px;
-      background: #fff;
+      background: var(--input);
+      color: var(--text);
       box-sizing: border-box;
+    }
+
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(243, 160, 70, 0.2);
     }
 
     textarea {
@@ -108,15 +118,20 @@ _UI_HTML = """<!doctype html>
       border: none;
       border-radius: 10px;
       background: var(--primary);
-      color: #fff;
+      color: #1a140f;
       padding: 10px 16px;
       cursor: pointer;
       font-weight: 600;
     }
 
     button.secondary {
-      background: #e5e7eb;
-      color: #111827;
+      background: #2a2424;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    button:hover {
+      filter: brightness(1.05);
     }
 
     button:disabled {
@@ -146,8 +161,9 @@ _UI_HTML = """<!doctype html>
       align-items: center;
       padding: 6px 12px;
       border-radius: 999px;
-      background: #eef2ff;
-      color: #1e3a8a;
+      background: #231f1f;
+      border: 1px solid #3a2f2a;
+      color: var(--accent);
       font-weight: 600;
       margin-top: 4px;
     }
