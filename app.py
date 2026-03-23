@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 from idx_wrapper import IDXClient
@@ -23,6 +23,334 @@ app = FastAPI(
 
 _client = IDXClient()
 _forecaster = StockForecaster()
+
+_UI_HTML = """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IDX Forecast Dashboard</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --primary: #1d4ed8;
+      --border: #e5e7eb;
+      --success: #16a34a;
+      --error: #dc2626;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 32px auto 64px;
+      padding: 0 20px;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+      font-size: 28px;
+    }
+
+    p {
+      line-height: 1.6;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    input, textarea, button {
+      font: inherit;
+    }
+
+    input, textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      box-sizing: border-box;
+    }
+
+    textarea {
+      min-height: 110px;
+      resize: vertical;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      background: var(--primary);
+      color: #fff;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button.secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    button:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .status {
+      margin-top: 8px;
+      font-weight: 600;
+    }
+
+    .status[data-type="success"] {
+      color: var(--success);
+    }
+
+    .status[data-type="error"] {
+      color: var(--error);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: #eef2ff;
+      color: #1e3a8a;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>IDX Forecast Dashboard</h1>
+    <p class="muted">
+      Pick a stock and generate today’s recommendation using the weighted stacking
+      model (60% quantitative indicators + 40% news sentiment).
+    </p>
+
+    <div class="card" style="margin-top: 20px;">
+      <form id="forecast-form">
+        <div class="grid">
+          <div>
+            <label for="stock-code">Stock code</label>
+            <input id="stock-code" list="stock-options" placeholder="e.g. BBCA" required />
+            <datalist id="stock-options"></datalist>
+            <button type="button" class="secondary" id="load-stocks" style="margin-top: 10px;">
+              Load stock list from API
+            </button>
+            <div id="stock-status" class="status muted" data-type="muted"></div>
+          </div>
+          <div>
+            <label for="history-days">History days</label>
+            <input id="history-days" type="number" min="60" value="90" />
+            <p class="muted" style="margin-top: 8px;">
+              Minimum 60 days of price history are required for indicator coverage.
+            </p>
+          </div>
+        </div>
+
+        <div style="margin-top: 16px;">
+          <label for="news-headlines">News headlines (one per line)</label>
+          <textarea id="news-headlines" placeholder="Optional: paste today’s headlines"></textarea>
+        </div>
+
+        <div style="margin-top: 16px; display: flex; gap: 12px; align-items: center;">
+          <button type="submit" id="run-forecast">Run forecast</button>
+          <div id="forecast-status" class="status muted" data-type="muted"></div>
+        </div>
+      </form>
+    </div>
+
+    <section id="result-card" class="card hidden" style="margin-top: 20px;">
+      <h2 style="margin-top: 0;">Recommendation</h2>
+      <div class="grid">
+        <div>
+          <h3 style="margin-bottom: 6px;">Short-term</h3>
+          <div id="rec-short" class="pill">—</div>
+          <p class="muted">Score: <span id="score-short">—</span></p>
+        </div>
+        <div>
+          <h3 style="margin-bottom: 6px;">Long-term</h3>
+          <div id="rec-long" class="pill">—</div>
+          <p class="muted">Score: <span id="score-long">—</span></p>
+        </div>
+      </div>
+      <div style="margin-top: 12px;">
+        <p><strong>Sentiment:</strong> <span id="sentiment-label">—</span> (<span id="sentiment-score">—</span>)</p>
+        <p><strong>Weights:</strong> <span id="weights">—</span></p>
+        <p><strong>As of:</strong> <span id="as-of">—</span></p>
+        <p><strong>Explanation:</strong></p>
+        <p id="explanation" class="muted">—</p>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      const sampleStocks = [
+        { code: "BBCA", name: "Bank Central Asia" },
+        { code: "BBRI", name: "Bank Rakyat Indonesia" },
+        { code: "TLKM", name: "Telkom Indonesia" },
+        { code: "ASII", name: "Astra International" },
+        { code: "UNVR", name: "Unilever Indonesia" },
+      ];
+
+      const datalist = document.getElementById("stock-options");
+      const stockInput = document.getElementById("stock-code");
+      const loadButton = document.getElementById("load-stocks");
+      const stockStatus = document.getElementById("stock-status");
+      const forecastStatus = document.getElementById("forecast-status");
+      const resultCard = document.getElementById("result-card");
+      const runButton = document.getElementById("run-forecast");
+
+      function setStatus(el, message, type) {
+        el.textContent = message;
+        el.dataset.type = type || "muted";
+      }
+
+      function populateList(stocks) {
+        datalist.innerHTML = "";
+        stocks.forEach((stock) => {
+          if (!stock.code) return;
+          const option = document.createElement("option");
+          option.value = stock.code;
+          option.label = stock.name ? `${stock.code} — ${stock.name}` : stock.code;
+          datalist.appendChild(option);
+        });
+      }
+
+      populateList(sampleStocks);
+
+      loadButton.addEventListener("click", async () => {
+        setStatus(stockStatus, "Loading stock list from IDX...", "muted");
+        try {
+          const response = await fetch("/stocks?length=200");
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const payload = await response.json();
+          const rows = Array.isArray(payload.data) ? payload.data : [];
+          const stocks = rows
+            .map((row) => ({
+              code: row.StockCode || row.stockCode || row.code,
+              name: row.StockName || row.stockName || row.name || "",
+            }))
+            .filter((stock) => stock.code);
+          if (!stocks.length) {
+            throw new Error("No stock data returned");
+          }
+          populateList(stocks);
+          setStatus(stockStatus, `Loaded ${stocks.length} stocks from API.`, "success");
+        } catch (err) {
+          populateList(sampleStocks);
+          setStatus(stockStatus, `Unable to load list (${err.message}). Using sample tickers.`, "error");
+        }
+      });
+
+      stockInput.addEventListener("input", () => {
+        stockInput.value = stockInput.value.toUpperCase();
+      });
+
+      document.getElementById("forecast-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const code = stockInput.value.trim().toUpperCase();
+        const historyDays = parseInt(document.getElementById("history-days").value, 10);
+        const headlinesRaw = document.getElementById("news-headlines").value;
+        const headlines = headlinesRaw
+          .split("\\n")
+          .map((line) => line.trim())
+          .filter(Boolean);
+
+        if (!code) {
+          setStatus(forecastStatus, "Please choose a stock code.", "error");
+          return;
+        }
+        if (Number.isNaN(historyDays) || historyDays < 60) {
+          setStatus(forecastStatus, "History days must be at least 60.", "error");
+          return;
+        }
+
+        const payload = { history_days: historyDays };
+        if (headlines.length) {
+          payload.news_headlines = headlines;
+        }
+
+        runButton.disabled = true;
+        setStatus(forecastStatus, "Running forecast...", "muted");
+
+        try {
+          const response = await fetch(`/forecast/${encodeURIComponent(code)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.detail || "Forecast request failed.");
+          }
+
+          document.getElementById("rec-short").textContent = data.recommendation_short_term || "—";
+          document.getElementById("rec-long").textContent = data.recommendation_long_term || "—";
+          document.getElementById("score-short").textContent = data.score_short_term ?? "—";
+          document.getElementById("score-long").textContent = data.score_long_term ?? "—";
+          document.getElementById("sentiment-label").textContent = data.news_sentiment_label || "Neutral";
+          document.getElementById("sentiment-score").textContent = data.sentiment_score ?? "0.0";
+          const weights = data.weights
+            ? `${Math.round(data.weights.quantitative * 100)}% quantitative / ${Math.round(data.weights.sentiment * 100)}% sentiment`
+            : "60% quantitative / 40% sentiment";
+          document.getElementById("weights").textContent = weights;
+          document.getElementById("as-of").textContent = new Date().toLocaleString();
+          document.getElementById("explanation").textContent = data.explanation || "—";
+
+          resultCard.classList.remove("hidden");
+          setStatus(forecastStatus, `Forecast ready for ${code}.`, "success");
+        } catch (err) {
+          setStatus(forecastStatus, `Forecast failed: ${err.message}`, "error");
+        } finally {
+          runButton.disabled = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -46,6 +374,12 @@ class ForecastRequest(BaseModel):
 def root() -> Dict[str, str]:
     """Health-check endpoint."""
     return {"status": "ok", "message": "IDX Python Wrapper is running."}
+
+
+@app.get("/ui", tags=["UI"], response_class=HTMLResponse)
+def ui() -> str:
+    """Simple web UI for the forecast endpoint."""
+    return _UI_HTML
 
 
 @app.get("/stocks", tags=["Stocks"])

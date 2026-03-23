@@ -15,6 +15,7 @@ A Python wrapper for the public [Indonesia Stock Exchange (IDX)](https://www.idx
 | `GET /index/{index_id}` | Historical statistics for a market index (e.g. IHSG) |
 | `GET /brokers` | Trading summary per broker member |
 | `POST /forecast/{code}` | Buy/Hold/Sell recommendation (quantitative + news sentiment) |
+| `GET /ui` | Web dashboard to run forecast recommendations |
 
 Interactive API documentation is available at **`/docs`** (Swagger UI) once the server is running.
 
@@ -69,7 +70,8 @@ pip install -r requirements.txt
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-Open <http://localhost:8000/docs> in your browser.
+Open <http://localhost:8000/docs> in your browser for the API, or
+<http://localhost:8000/ui> for the forecast dashboard.
 
 ### Run with Docker
 
@@ -87,6 +89,9 @@ The API will be available at <http://localhost:8000>.
 ```bash
 # Health check
 curl http://localhost:8000/
+
+# Forecast dashboard
+# http://localhost:8000/ui
 
 # Latest price for BCA (BBCA)
 curl http://localhost:8000/stocks/BBCA
