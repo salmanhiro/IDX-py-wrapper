@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import List
 from urllib.parse import quote_plus
-import xml.etree.ElementTree as ET
+
+from defusedxml import ElementTree as ET
 
 import requests
 

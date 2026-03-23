@@ -76,7 +76,20 @@ TEST_DAYS = 30
 
 USE_LIVE_NEWS = os.getenv("USE_LIVE_NEWS", "").lower() in {"1", "true", "yes"}
 NEWS_QUERY = os.getenv("NEWS_QUERY", "BBCA stock")
-NEWS_LIMIT = int(os.getenv("NEWS_LIMIT", "5"))
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        print(f"Invalid {name} value '{raw}', using {default}.")
+        return default
+
+
+NEWS_LIMIT = max(1, _env_int("NEWS_LIMIT", 5))
 
 _positive_headlines = [
     "BBCA reports strong quarterly earnings growth",
@@ -126,8 +139,6 @@ if USE_LIVE_NEWS:
                 days=days_back,
             )
             live_news.append(headlines)
-        if not live_news:
-            raise RuntimeError("No headlines returned from RSS feed.")
         if not any(live_news):
             print("No headlines returned; using synthetic news for the backtest window.")
             news_by_day = fallback_news_by_day

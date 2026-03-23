@@ -29,7 +29,7 @@ def test_fetch_latest_headlines_parses_titles():
         headlines = fetch_latest_headlines("BBCA stock", limit=2, days=3)
 
     assert headlines == ["Headline A", "Headline B"]
-    called_url = mock_get.call_args.args[0]
+    called_url = mock_get.call_args[0][0]
     assert "when%3A3d" in called_url
 
 
