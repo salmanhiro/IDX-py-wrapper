@@ -45,6 +45,7 @@ _UI_HTML = """<!doctype html>
       --error: #f06a5c;
       --accent: #f7b469;
       --accent-rgb: 243, 160, 70;
+      --primary-hover: #f6b45b;
       --input: #211d1d;
       --input-border: #3a3232;
       --bg-gradient-start: #1b1818;
@@ -142,7 +143,7 @@ _UI_HTML = """<!doctype html>
     }
 
     button:hover {
-      background: #f6b45b;
+      background: var(--primary-hover);
       color: #1a140f;
       box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.18);
     }
