@@ -44,13 +44,23 @@ _UI_HTML = """<!doctype html>
       --success: #5bbf9c;
       --error: #f06a5c;
       --accent: #f7b469;
+      --accent-rgb: 243, 160, 70;
       --input: #211d1d;
       --input-border: #3a3232;
+      --bg-gradient-start: #1b1818;
+      --bg-gradient-end: #0b0a0a;
+      --pill-bg: #231f1f;
+      --pill-border: #3a2f2a;
     }
 
     body {
       margin: 0;
-      background: radial-gradient(circle at top, #1b1818 0%, var(--bg) 45%, #0b0a0a 100%);
+      background: radial-gradient(
+        circle at top,
+        var(--bg-gradient-start) 0%,
+        var(--bg) 45%,
+        var(--bg-gradient-end) 100%
+      );
       color: var(--text);
     }
 
@@ -106,7 +116,7 @@ _UI_HTML = """<!doctype html>
     input:focus, textarea:focus {
       outline: none;
       border-color: var(--accent);
-      box-shadow: 0 0 0 2px rgba(243, 160, 70, 0.2);
+      box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.2);
     }
 
     textarea {
@@ -132,7 +142,7 @@ _UI_HTML = """<!doctype html>
 
     button:hover {
       filter: brightness(1.12);
-      box-shadow: 0 0 0 2px rgba(243, 160, 70, 0.18);
+      box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.18);
     }
 
     button:disabled {
@@ -162,8 +172,8 @@ _UI_HTML = """<!doctype html>
       align-items: center;
       padding: 6px 12px;
       border-radius: 999px;
-      background: #231f1f;
-      border: 1px solid #3a2f2a;
+      background: var(--pill-bg);
+      border: 1px solid var(--pill-border);
       color: var(--accent);
       font-weight: 600;
       margin-top: 4px;
